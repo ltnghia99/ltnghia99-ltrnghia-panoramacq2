@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ltnghiaimg360° Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .reset-control {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .reset-control button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .reset-control button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .footer-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 32px;
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .footer-bar span {
+            color: white;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            text-align: center;
+        }
+
+        .footer-bar .left {
+            text-align: left;
+            font-style: italic;
+        }
+
+        .footer-bar .right {
+            text-align: right;
+            font-style: italic;
+        }
+
+        .footer-bar .center {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- Nút Reset duy nhất -->
+    <div class="reset-control">
+        <button onclick="resetView()">🔄 Reset</button>
+    </div>
+
+    <!-- Dòng chữ dưới -->
+    <div class="footer-bar">
+        <span class="left">Lê Trọng Nghĩa</span>
+        <span class="center" id="scene-label">Phối cảnh 1</span>
+        <span class="right">Đồ án tốt nghiệp</span>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const texture = new THREE.TextureLoader().load('panorama.jpg');
+        const geometry = new THREE.SphereGeometry(1000, 60, 40);
+        geometry.scale(-1, 1, 1);
+        const material = new THREE.MeshBasicMaterial({ map: texture });
+        const sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+
+        // ✅ Xoay trái 90 độ (ngược chiều kim đồng hồ)
+        sphere.rotation.y = -Math.PI / 2;
+
+        function resetView() {
+            // ✅ Reset cũng xoay về -90°
+            sphere.rotation.set(0, -Math.PI / 2, 0);
+        }
+
+        let isDragging = false, prevX = 0, prevY = 0;
+
+        document.addEventListener('mousedown', e => {
+            isDragging = true;
+            prevX = e.clientX;
+            prevY = e.clientY;
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const deltaX = e.clientX - prevX;
+            const deltaY = e.clientY - prevY;
+            sphere.rotation.y += deltaX * 0.005;
+            sphere.rotation.x += deltaY * 0.005;
+            sphere.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, sphere.rotation.x));
+            prevX = e.clientX;
+            prevY = e.clientY;
+        });
+
+        document.addEventListener('mouseup', () => isDragging = false);
+
+        document.addEventListener('wheel', (event) => {
+            camera.fov += event.deltaY * 0.05;
+            camera.fov = Math.max(30, Math.min(90, camera.fov));
+            camera.updateProjectionMatrix();
+        });
+
+        let touchStartX = 0, touchStartY = 0, touchPrevDistance = 0;
+
+        document.addEventListener('touchstart', (event) => {
+            if (event.touches.length === 1) {
+                touchStartX = event.touches[0].clientX;
+                touchStartY = event.touches[0].clientY;
+            } else if (event.touches.length === 2) {
+                const dx = event.touches[0].clientX - event.touches[1].clientX;
+                const dy = event.touches[0].clientY - event.touches[1].clientY;
+                touchPrevDistance = Math.sqrt(dx * dx + dy * dy);
+            }
+        });
+
+        document.addEventListener('touchmove', (event) => {
+            if (event.touches.length === 1) {
+                const deltaX = event.touches[0].clientX - touchStartX;
+                const deltaY = event.touches[0].clientY - touchStartY;
+                sphere.rotation.y += deltaX * 0.005;
+                sphere.rotation.x += deltaY * 0.005;
+                sphere.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, sphere.rotation.x));
+                touchStartX = event.touches[0].clientX;
+                touchStartY = event.touches[0].clientY;
+            } else if (event.touches.length === 2) {
+                const dx = event.touches[0].clientX - event.touches[1].clientX;
+                const dy = event.touches[0].clientY - event.touches[1].clientY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const zoomFactor = (touchPrevDistance - distance) * 0.1;
+                camera.fov += zoomFactor;
+                camera.fov = Math.max(30, Math.min(90, camera.fov));
+                camera.updateProjectionMatrix();
+                touchPrevDistance = distance;
+            }
+            event.preventDefault();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        camera.position.set(0, 0, 0.1);
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
